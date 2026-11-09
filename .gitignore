@@ -1,0 +1,11 @@
+/target
+
+# Alternate Cargo build and coverage directories.
+/target-*/
+
+# Local bridge logs and raw captures.
+/*.log
+/*-log.txt
+/*.h2t.bin
+/*.t2h.bin
+/*.k2h.bin

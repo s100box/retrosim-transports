@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: retrosim-transports
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: retrosim-transports
+      - uses: actions/checkout@v4
+        with:
+          repository: hharte/retrosim-core
+          ref: main
+          path: retrosim-core
+      - name: Native Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libssl-dev pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: SSH fixture dependencies
+        run: python -m pip install -r ci/requirements.txt
+      - name: Install declared minimum toolchain
+        run: |
+          msrv=$(sed -n 's/^rust-version = "\([^"]*\)"/\1/p' Cargo.toml)
+          test -n "$msrv"
+          rustup toolchain install "$msrv" --profile minimal
+      - name: Locked minimum-toolchain tests
+        run: sh ci/check-msrv.sh
+      - name: Stable formatting, lint, and documentation
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+          RUSTDOCFLAGS='-D warnings' cargo doc --locked --workspace --all-features --no-deps
+      - name: Stable feature matrix
+        run: |
+          cargo test --locked --workspace --all-features
+          cargo test --locked --no-default-features
+          cargo test --locked -p serbridge --no-default-features
+      - name: Host keys rejected before authentication
+        env:
+          RETROSIM_SSH_TEST_PYTHON: python
+        run: cargo test --locked --all-features --test ssh_host_key -- --ignored

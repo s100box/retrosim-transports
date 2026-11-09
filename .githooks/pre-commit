@@ -1,0 +1,26 @@
+#!/bin/sh
+set -e
+
+# --all-features, NOT the default set.
+#
+# The default feature set for this crate is `serial` alone. A gate run on it
+# never compiles `ssh`, `ssh_auth`, or the whole `uartssh` binary -- roughly a
+# quarter of the tests, and the transport most likely to break -- because
+# feature-gated code that no gate enables is not covered by anything.
+#
+# `--all-features` here means serial + ssh + bridge. It costs a libssh2 build
+# the first time and nothing afterwards. Do not trim it back for speed.
+
+echo "[pre-commit] cargo fmt --all -- --check"
+cargo fmt --all -- --check
+
+echo "[pre-commit] cargo clippy --locked --workspace --all-targets --all-features -- -D warnings"
+cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+
+echo "[pre-commit] cargo doc --locked --workspace --all-features --no-deps"
+RUSTDOCFLAGS="-D warnings" cargo doc --locked --workspace --all-features --no-deps
+
+echo "[pre-commit] cargo test --locked --workspace --all-features"
+cargo test --locked --workspace --all-features
+
+echo "[pre-commit] all checks passed"

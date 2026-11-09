@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# SPDX-FileCopyrightText: 2026 Howard M. Harte
+
+[package]
+name = "serbridge"
+version = "0.1.0"
+edition = "2021"
+rust-version.workspace = true
+publish = false
+license = "MIT OR Apache-2.0"
+description = "Persistent console logger and RFC 2217 serial bridge"
+repository = "https://github.com/hharte/retrosim-transports"
+readme = "README.md"
+
+[[bin]]
+name = "serbridge"
+path = "src/main.rs"
+
+# The serial port itself is serbridge's own -- a few platform calls behind
+# FFI declarations, with the USB-identity enumeration the reconnect needs --
+# so the library's serial feature (the serialport crate, and libudev on
+# Linux) stays off and the bridge cross-compiles for the boards' ARM Linux
+# with no C library to find. The RFC 2217 protocol and every other transport
+# come from the library.
+[dependencies]
+retrosim-core = { path = "../../retrosim-core" }
+retrosim-transports = { path = "..", default-features = false }
+
+# The com0com test opens the board's end of the pair. No default features:
+# they would add libudev to every Linux test build, cross builds included.
+[dev-dependencies]
+serialport = { version = "4.7", default-features = false }
+
+[features]
+# An ssh: spec for --port. Builds libssh2.
+ssh = ["retrosim-transports/ssh"]

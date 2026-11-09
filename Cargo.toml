@@ -1,0 +1,93 @@
+[package]
+name = "retrosim-transports"
+version = "0.1.0"
+edition = "2021"
+description = "Reusable transport implementations (TCP, telnet, serial, SSH, UDP) for retro system simulators"
+rust-version.workspace = true
+authors = ["Howard M. Harte"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/hharte/retrosim-transports"
+readme = "README.md"
+keywords = ["emulator", "serial", "tcp", "telnet", "retrocomputing"]
+categories = ["emulators", "simulation"]
+exclude = [".github/", ".githooks/", ".gitattributes", "AGENTS.md", "CLAUDE.md", "serbridge/"]
+
+# serbridge, the bridge that serves a port over RFC 2217, is a member: it is
+# built on this crate's rfc2217 module and transports.
+[workspace]
+members = ["serbridge"]
+
+[workspace.package]
+rust-version = "1.85.1"
+
+[dependencies]
+retrosim-core = { path = "../retrosim-core" }
+socket2 = "0.6"
+
+[dependencies.serialport]
+version = "4.7"
+optional = true
+
+[dependencies.ssh2]
+version = "0.9"
+optional = true
+
+[dependencies.base64]
+version = "0.22"
+optional = true
+
+[dependencies.sha2]
+version = "0.10"
+optional = true
+
+# Console password entry for the `uartssh` binary. Pulled in only by the
+# `bridge` feature so the library keeps its small dependency set.
+#
+# Keep password prompting on the tested 7.3 series; dependency upgrades must
+# pass the locked minimum-toolchain gate in ci/check-msrv.sh.
+[dependencies.rpassword]
+version = "~7.3"
+optional = true
+
+# Ctrl-C as a request to finish rather than a kill, so `uartssh` closes the
+# SSH channel politely and flushes its trace files.
+[dependencies.ctrlc]
+version = "3"
+optional = true
+
+# termios, for putting this console into character-at-a-time mode when
+# `--stdin` is driving a terminal that has no keyboard of its own.
+#
+# Unix only: the Windows side of that is three lines of `extern "system"`
+# against the console API and does not justify a dependency, whereas the
+# `termios` struct layout varies enough between platforms that hand-rolling
+# it would be a portability bug waiting to happen.
+[target.'cfg(unix)'.dependencies.libc]
+version = "0.2"
+optional = true
+
+# Tests only. `uartssh --expect-manifest` writes JSON Lines with a
+# hand-written escaper -- there is no JSON dependency in the library and one
+# field is not worth acquiring one -- and an escaper checked only against its
+# own expectations has proved nothing. This parses what it wrote with a real
+# parser. Already in the tree via retrosim-core, so it costs no new
+# dependency. The minimum-toolchain gate covers the resolved version.
+[dev-dependencies]
+serde_json = "1"
+
+[features]
+default = ["serial"]
+serial = ["serialport"]
+ssh = ["ssh2", "dep:base64", "dep:sha2"]
+# The `uartssh` binary: a serial terminal bridged to a shell on an SSH host.
+# Off by default -- a library consumer should not build a CLI, and should not
+# acquire its dependencies either.
+bridge = ["serial", "ssh", "dep:rpassword", "dep:ctrlc", "dep:libc"]
+
+# Not auto-discovered: `required-features` needs an explicit target, and
+# without it `cargo build --all` would try to compile the bridge against a
+# library built without `serial`/`ssh` and fail on missing modules.
+[[bin]]
+name = "uartssh"
+path = "src/bin/uartssh/main.rs"
+required-features = ["bridge"]
